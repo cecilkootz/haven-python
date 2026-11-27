@@ -1,0 +1,54 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install package and dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Run tests
+        run: pytest tests/ -v
+
+  version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fail if the package version is lowered below main
+        run: |
+          git fetch origin main
+          python - <<'PY'
+          import json, subprocess, sys
+
+          def version_from(ref):
+              text = subprocess.run(
+                  ["git", "show", f"{ref}:pyproject.toml"], capture_output=True, text=True, check=True
+              ).stdout
+              for line in text.splitlines():
+                  if line.startswith("version"):
+                      return line.split('"')[1]
+              raise SystemExit(f"no version found in {ref}")
+
+          head, base = version_from("HEAD"), version_from("origin/main")
+          print(f"HEAD={head} main={base}")
+          if subprocess.run(
+              ["git", "merge-base", "--is-ancestor", "origin/main", "HEAD"]
+          ).returncode == 0:
+              # HEAD contains main: only flag a strict downgrade
+              if tuple(map(int, head.split("."))) < tuple(map(int, base.split("."))):
+                  sys.exit(f"version {head} is lower than main's {base}")
+          PY

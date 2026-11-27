@@ -70,20 +70,39 @@ class Location:
         }
 
     def get_lights(self) -> Dict[int, Light]:
-        """Get all lights for this location."""
+        """Get all lights for this location.
+
+        Uses the same endpoint as the Haven Lighting Android app
+        (v2.5.67 LocationsService.getLocationLightZones):
+        GET LightAndZones/OrderedList/{location_id}, which answers with
+        {"lights": [...], "zones": [...]} (app-side extractLights maps
+        r0.lights and r0.zones). The older
+        Location/InformationSummaryWithAllZonesGroup endpoint still resolves
+        but no longer reports a usable "lights" array, which made
+        discover_locations find a location with zero lights.
+        """
         logger.debug("Fetching lights for location: %s (ID: %d)", self.name, self._location_id)
 
         try:
             response = self._credentials.make_request(
                 "GET",
-                f"/Location/InformationSummaryWithAllZonesGroup/{self._location_id}"
+                f"LightAndZones/OrderedList/{self._location_id}"
             )
+
+            if "lights" not in response:
+                raise ApiError(
+                    "LightAndZones/OrderedList response is missing the lights array"
+                )
 
             if self._data and response.get("name"):
                 self._data.name = response["name"]
 
             self._lights = {}
             for light_data in response.get("lights", []):
+                # Skip lights the user has hidden in the app; the app does
+                # not show them in the light list either (isHidden field).
+                if light_data.get("isHidden"):
+                    continue
                 light_id = int(light_data["lightId"])
                 self._lights[light_id] = Light(
                     self._credentials,

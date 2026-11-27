@@ -37,6 +37,9 @@ def mock_location_response():
 
 @pytest.fixture
 def mock_lights_response():
+    # Shape returned by LightAndZones/OrderedList/{locationId}
+    # (from the Haven Android app v2.5.67: extractLights maps response.lights
+    # and response.zones; light objects use patternSpeed, not patternSpeedId).
     return {
         "locationId": 123,
         "name": "Test Location",
@@ -47,7 +50,10 @@ def mock_lights_response():
                 "lightingStatusId": 1,
                 "lightBrightnessId": 10,
                 "colorId": 11,
-                "patternSpeedId": 0,
+                "patternSpeed": 0,
+                "isHidden": False,
+                "orderNumber": 1,
             }
         ],
+        "zones": [],
     }

@@ -2,6 +2,7 @@ from typing import Dict, Any, Optional
 import logging
 from ..models import LocationData
 from .light import Light
+from .scene import SCENE_TYPE_BOTH, Scene
 from ..credentials import Credentials
 from ..exceptions import ApiError
 
@@ -157,3 +158,33 @@ class Location:
             "unexpected LightAndZones/OrderedList response: "
             f"{type(response).__name__} ({response!r:.200})"
         )
+
+    def get_scenes(self) -> Dict[int, "Scene"]:
+        """List the location's saved scenes (static and playground).
+
+        GET Scene/UserScenesByLocation/?locationId={id}&sceneType=BOTH on
+        the residential API (app v2.5.67 ScenesService.getScenesByLocation
+        + mapScene). The response body is a flat list of scene items.
+        """
+        response = self._credentials.make_request(
+            "GET",
+            f"/Scene/UserScenesByLocation/?locationId={self._location_id}"
+            f"&sceneType={SCENE_TYPE_BOTH}",
+        )
+        if isinstance(response, dict):
+            # tolerate a wrapped envelope; the app maps response.data
+            # (the axios body) directly, so a bare list is the expected form
+            items = response.get("scenes", response.get("data", response))
+        else:
+            items = response
+        if not isinstance(items, list):
+            raise ApiError(
+                "unexpected Scene/UserScenesByLocation response: "
+                f"{type(response).__name__}"
+            )
+        scenes: Dict[int, Scene] = {}
+        for item in items:
+            scene = Scene(self._credentials, self._location_id, item)
+            scenes[scene.id] = scene
+        logger.info("Found %d scenes for location: %s", len(scenes), self.name)
+        return scenes

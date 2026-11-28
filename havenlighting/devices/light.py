@@ -1,7 +1,7 @@
 from typing import Dict, Any
 import logging
 from ..models import LightData
-from ..config import LIGHT_COMMAND, LIGHT_PARAMS, LIGHT_STATE
+from ..config import COMMAND_API_BASE, LIGHT_COMMAND, LIGHT_PARAMS, LIGHT_STATE
 from ..credentials import Credentials
 from ..exceptions import ApiError
 
@@ -14,10 +14,11 @@ class Light:
         self._credentials = credentials
         self.location_id = location_id
         # The LightAndZones/OrderedList endpoint reports pattern speed as
-        # "patternSpeed" (no "Id" suffix), unlike the older
-        # Location/InformationSummaryWithAllZonesGroup payload.
+        # "patternSpeed" (no "Id" suffix), identifies each entry by "id"
+        # (not "lightId"), and can return zone entries (isZone). Unlike the
+        # older Location/InformationSummaryWithAllZonesGroup payload.
         self._data = LightData(
-            light_id=int(data["lightId"]),
+            light_id=int(data["lightId"]) if "lightId" in data else int(data["id"]),
             name=data["name"],
             status=data.get("lightingStatusId", LIGHT_STATE["OFF"]),
             brightness=data.get("lightBrightnessId", LIGHT_PARAMS["BRIGHTNESS"]),
@@ -25,8 +26,10 @@ class Light:
             pattern_speed=data.get(
                 "patternSpeed", data.get("patternSpeedId", LIGHT_PARAMS["PATTERN_SPEED"])
             ),
+            is_zone=bool(data.get("isZone", False)),
         )
-        logger.debug("Initialized Light: %s (ID: %d)", self.name, self.id)
+        logger.debug("Initialized %s: %s (ID: %d)",
+                     "Zone" if self._data.is_zone else "Light", self.name, self.id)
 
     @property
     def id(self) -> int:
@@ -88,8 +91,8 @@ class Light:
         """
         payload = {
             "locationId": self.location_id,
-            "selectedLightIds": [self.id],
-            "selectedZoneIds": [],
+            "selectedLightIds": [] if self._data.is_zone else [self.id],
+            "selectedZoneIds": [self.id] if self._data.is_zone else [],
             "lightingStatusId": lighting_status_id,
             "lightBrightnessId": (
                 LIGHT_COMMAND["KEEP_SAME"] if brightness is None else brightness
@@ -101,6 +104,7 @@ class Light:
             "POST",
             f"/v2/Light/CommandV1?locationId={self.location_id}",
             json=payload,
+            base_url=COMMAND_API_BASE,
         )
         if not (isinstance(response, dict) and response.get("success")):
             raise ApiError(f"Command for light {self.id} failed: {response!r}")

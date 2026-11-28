@@ -89,16 +89,13 @@ class Location:
                 f"/LightAndZones/OrderedList/{self._location_id}"
             )
 
-            if "lights" not in response:
-                raise ApiError(
-                    "LightAndZones/OrderedList response is missing the lights array"
-                )
+            lights = self._extract_lights(response)
 
-            if self._data and response.get("name"):
+            if self._data and isinstance(response, dict) and response.get("name"):
                 self._data.name = response["name"]
 
             self._lights = {}
-            for light_data in response.get("lights", []):
+            for light_data in lights:
                 # Skip lights the user has hidden in the app; the app does
                 # not show them in the light list either (isHidden field).
                 if light_data.get("isHidden"):
@@ -116,3 +113,40 @@ class Location:
             raise
 
         return self._lights
+
+    def _extract_lights(self, response: Any) -> list[dict[str, Any]]:
+        """Pull the lights array out of the OrderedList response.
+
+        The Android app (v2.5.67) reads response.data.lights directly, but
+        the live API may wrap or flatten the payload. Accept the known
+        shapes; for anything else, fail with a message that names the
+        actual shape so the log pinpoints it in one attempt:
+
+        - {"lights": [...]}                          the app's shape
+        - {"data": {"lights": [...]}}                a wrapped envelope
+        - [{lightId/isZone...}, ...]                 a flat ordered list
+          (zone entries carry zoneId instead of lightId and are skipped)
+        - {}                                         an empty body
+        """
+        if isinstance(response, dict):
+            if isinstance(response.get("lights"), list):
+                return response["lights"]
+            if isinstance(response.get("data"), dict):
+                inner = response["data"]
+                if isinstance(inner.get("lights"), list):
+                    return inner["lights"]
+                raise ApiError(
+                    "unexpected LightAndZones/OrderedList response: dict with keys "
+                    f"{sorted(response.keys())}, data keys "
+                    f"{sorted(inner.keys())}"
+                )
+            raise ApiError(
+                "unexpected LightAndZones/OrderedList response: dict with keys "
+                f"{sorted(response.keys())}"
+            )
+        if isinstance(response, list):
+            return [item for item in response if "lightId" in item]
+        raise ApiError(
+            "unexpected LightAndZones/OrderedList response: "
+            f"{type(response).__name__} ({response!r:.200})"
+        )

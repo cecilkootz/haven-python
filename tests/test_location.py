@@ -86,3 +86,42 @@ def test_get_lights_parses_brightness_and_pattern_speed(location):
 
     assert lights[456].brightness == 5
     assert not lights[456].is_on
+
+
+def test_get_lights_accepts_wrapped_envelope(location):
+    location._credentials.make_request.return_value = {
+        "data": {
+            "lights": [_light_data()],
+            "zones": [],
+        }
+    }
+
+    lights = location.get_lights()
+
+    assert list(lights.keys()) == [456]
+
+
+def test_get_lights_accepts_flat_list(location):
+    location._credentials.make_request.return_value = [
+        _light_data(),
+        {"zoneId": 99, "name": "A Zone", "isZone": True},
+    ]
+
+    lights = location.get_lights()
+
+    # zone entries (zoneId, no lightId) are skipped
+    assert list(lights.keys()) == [456]
+
+
+def test_get_lights_unexpected_shape_names_the_keys(location):
+    location._credentials.make_request.return_value = {"zones": [], "result": None}
+
+    with pytest.raises(ApiError, match=r"keys \['result', 'zones'\]"):
+        location.get_lights()
+
+
+def test_get_lights_envelope_without_lights_names_both_key_sets(location):
+    location._credentials.make_request.return_value = {"data": {"zones": []}}
+
+    with pytest.raises(ApiError, match=r"data keys \['zones'\]"):
+        location.get_lights()

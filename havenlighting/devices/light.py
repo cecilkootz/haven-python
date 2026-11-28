@@ -40,6 +40,11 @@ class Light:
         return self._data.name
 
     @property
+    def is_zone(self) -> bool:
+        """Whether this entry is a zone (a group of lights) rather than a light."""
+        return self._data.is_zone
+
+    @property
     def is_on(self) -> bool:
         return self._data.status == LIGHT_STATE["ON"]
 
@@ -73,14 +78,14 @@ class Light:
             self._data.brightness = brightness
         if color_id is not None:
             self._data.color = color_id
-        logger.info("Light turned on successfully: %s", self.name)
+        logger.debug("Light turned on successfully: %s", self.name)
 
     def turn_off(self) -> None:
         """Turn the light off."""
         logger.debug("Turning off light: %s (ID: %d)", self.name, self.id)
         self._send_command(LIGHT_STATE["OFF"])
         self._data.status = LIGHT_STATE["OFF"]
-        logger.info("Light turned off successfully: %s", self.name)
+        logger.debug("Light turned off successfully: %s", self.name)
 
     def set_brightness(self, brightness: int) -> None:
         """Set brightness (0-10 scale) without changing on/off state."""
@@ -89,7 +94,7 @@ class Light:
         logger.debug("Setting brightness of light %s (ID: %d) to %d", self.name, self.id, brightness)
         self._send_command(LIGHT_COMMAND["KEEP_SAME"], brightness=brightness)
         self._data.brightness = brightness
-        logger.info("Brightness of light %s set to %d", self.name, brightness)
+        logger.debug("Brightness of light %s set to %d", self.name, brightness)
 
     def set_color(self, color_id: int) -> None:
         """Set a color or pattern (catalog id, see havenlighting.colors)."""
@@ -98,7 +103,7 @@ class Light:
         logger.debug("Setting color of light %s (ID: %d) to %d", self.name, self.id, color_id)
         self._send_command(LIGHT_COMMAND["KEEP_SAME"], color_id=color_id)
         self._data.color = color_id
-        logger.info("Color of light %s set to %d", self.name, color_id)
+        logger.debug("Color of light %s set to %d", self.name, color_id)
 
     def set_pattern_speed(self, speed: int) -> None:
         """Set pattern speed (1-63 on Haven's scale)."""
@@ -107,7 +112,7 @@ class Light:
         logger.debug("Setting pattern speed of light %s (ID: %d) to %d", self.name, self.id, speed)
         self._send_command(LIGHT_COMMAND["KEEP_SAME"], pattern_speed=speed)
         self._data.pattern_speed = speed
-        logger.info("Pattern speed of light %s set to %d", self.name, speed)
+        logger.debug("Pattern speed of light %s set to %d", self.name, speed)
 
     def rename(self, name: str) -> None:
         """Rename this light.
@@ -123,7 +128,7 @@ class Light:
             json={"lightId": self.id, "name": name, "pinName": None},
         )
         self._data.name = name
-        logger.info("Renamed light %d to %s", self.id, name)
+        logger.debug("Renamed light %d to %s", self.id, name)
 
     def _send_command(
         self,

@@ -28,7 +28,7 @@ class HavenClient:
             setup_logging(logging.INFO if log_level is None else log_level, log_file)
         self._credentials = Credentials()
         self._locations: Dict[int, Location] = {}
-        self._lights: Dict[int, Light] = {}
+        self._lights: Dict[str, Light] = {}
         logger.debug("Initialized HavenClient")
 
     def authenticate(self, email: str, password: str) -> bool:

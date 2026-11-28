@@ -45,6 +45,16 @@ class Light:
         return self._data.is_zone
 
     @property
+    def key(self) -> str:
+        """Identifier unique across this location's lights *and* zones.
+
+        ``id`` alone is not: lights and zones are numbered independently,
+        so zone 7 and light 7 can both exist. ``Location.get_lights`` keys
+        its result by this.
+        """
+        return f"{'zone' if self.is_zone else 'light'}_{self.id}"
+
+    @property
     def is_on(self) -> bool:
         return self._data.status == LIGHT_STATE["ON"]
 

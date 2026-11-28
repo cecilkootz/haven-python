@@ -44,7 +44,7 @@ def test_get_lights_uses_ordered_list_endpoint(location):
     lights = location.get_lights()
 
     location._credentials.make_request.assert_called_once_with(
-        "GET", "LightAndZones/OrderedList/123"
+        "GET", "/LightAndZones/OrderedList/123"
     )
     assert list(lights.keys()) == [456]
     assert lights[456].name == "Light 456"

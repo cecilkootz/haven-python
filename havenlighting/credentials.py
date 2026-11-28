@@ -92,15 +92,21 @@ class Credentials:
         path: str,
         auth_required: bool = True,
         timeout: int = API_TIMEOUT,
+        base_url: str = API_BASE,
         **kwargs: Any
     ) -> Any:
-        """Make an authenticated API request with automatic token refresh."""
+        """Make an authenticated API request with automatic token refresh.
+
+        base_url defaults to the residential API; commands must pass
+        COMMAND_API_BASE (the legacy host the app's default client uses).
+        """
         try:
             return self._make_request_internal(
                 method=method,
                 path=path,
                 auth_required=auth_required,
                 timeout=timeout,
+                base_url=base_url,
                 **kwargs
             )
         except AuthenticationError:
@@ -112,6 +118,7 @@ class Credentials:
                     path=path,
                     auth_required=auth_required,
                     timeout=timeout,
+                    base_url=base_url,
                     **kwargs
                 )
             logger.error("Token refresh failed, unable to retry request")
@@ -123,13 +130,14 @@ class Credentials:
         path: str,
         auth_required: bool = True,
         timeout: int = API_TIMEOUT,
+        base_url: str = API_BASE,
         **kwargs: Any
     ) -> Any:
         """Internal method for making API requests."""
         if auth_required and not self.is_authenticated:
             raise AuthenticationError("Authentication required")
 
-        url = f"{API_BASE}{path}"
+        url = f"{base_url}{path}"
 
         headers = kwargs.pop("headers", {})
         headers.setdefault("Accept", "application/json")

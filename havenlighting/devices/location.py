@@ -100,7 +100,9 @@ class Location:
                 # not show them in the light list either (isHidden field).
                 if light_data.get("isHidden"):
                     continue
-                light_id = int(light_data["lightId"])
+                light_id = int(
+                    light_data["lightId"] if "lightId" in light_data else light_data["id"]
+                )
                 self._lights[light_id] = Light(
                     self._credentials,
                     self._location_id,
@@ -145,7 +147,12 @@ class Location:
                 f"{sorted(response.keys())}"
             )
         if isinstance(response, list):
-            return [item for item in response if "lightId" in item]
+            # Live-verified shape: a flat ordered list whose entries carry
+            # "id" (zones) or "lightId" (individual lights).
+            return [
+                item for item in response
+                if isinstance(item, dict) and ("lightId" in item or "id" in item)
+            ]
         raise ApiError(
             "unexpected LightAndZones/OrderedList response: "
             f"{type(response).__name__} ({response!r:.200})"

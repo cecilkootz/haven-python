@@ -125,3 +125,25 @@ def test_get_lights_envelope_without_lights_names_both_key_sets(location):
 
     with pytest.raises(ApiError, match=r"data keys \['zones'\]"):
         location.get_lights()
+
+
+def test_get_lights_flat_list_with_zone_entries(location):
+    # Live-verified shape (2026-11-27): the OrderedList endpoint returns a
+    # flat list whose entries are zones identified by "id", not "lightId".
+    location._credentials.make_request.return_value = [
+        {"id": 39288, "name": "Far Left Palm", "isZone": True,
+         "lightingStatusId": 2, "lightBrightnessId": 10, "colorId": 11,
+         "patternSpeed": 16, "isHidden": False},
+        {"id": 49148, "name": "Drive Way", "isZone": True,
+         "lightingStatusId": 2, "lightBrightnessId": 10, "colorId": 2,
+         "patternSpeed": 16, "isHidden": False},
+        "not-a-light",
+    ]
+
+    lights = location.get_lights()
+
+    assert sorted(lights.keys()) == [39288, 49148]
+    drive_way = lights[49148]
+    assert drive_way.name == "Drive Way"
+    assert drive_way.is_on
+    assert drive_way.brightness == 10

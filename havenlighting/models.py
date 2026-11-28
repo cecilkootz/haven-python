@@ -9,6 +9,7 @@ class LightData:
     brightness: int = 10
     color: int = 63
     pattern_speed: int = 63
+    is_zone: bool = False
 
 @dataclass
 class LocationData:

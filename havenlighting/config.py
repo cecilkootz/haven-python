@@ -26,6 +26,11 @@ LIGHT_COMMAND: Final[dict] = {
 }
 
 # API Configuration
+# The Android app (v2.5.67) splits calls across two bases (EnvConfig.PROD):
+# lights listing goes to RESIDENTIAL_API_URL (stg-api) via an explicit
+# per-request baseURL, while light commands ride the default client whose
+# baseURL is API_URL — the legacy host. The "stg" names are production.
 API_BASE: Final[str] = "https://stg-api.havenlighting.com/api"
+COMMAND_API_BASE: Final[str] = "https://stg-legacy-api.havenlighting.com/api"
 APP_SOURCE: Final[str] = "REACT_NATIVE"
 APP_VERSION: Final[str] = "1.6" 

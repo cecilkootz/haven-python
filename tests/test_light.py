@@ -25,15 +25,15 @@ def light(mocker):
 
 
 def _on_payload(location_id=123, light_id=456, lighting_status_id=2, brightness=63,
-                light_ids=None, zone_ids=None):
+                light_ids=None, zone_ids=None, color_id=63, pattern_speed=63):
     return {
         "locationId": location_id,
         "selectedLightIds": [light_id] if light_ids is None else light_ids,
         "selectedZoneIds": [] if zone_ids is None else zone_ids,
         "lightingStatusId": lighting_status_id,
         "lightBrightnessId": brightness,
-        "lightColorId": 63,
-        "patternSpeedId": 63,
+        "lightColorId": color_id,
+        "patternSpeedId": pattern_speed,
     }
 
 
@@ -132,4 +132,73 @@ def test_zone_command_uses_selected_zone_ids(mocker):
             light_ids=[],
             zone_ids=[49148],
         ),
+    )
+
+
+def test_turn_on_with_color(light):
+    light._credentials.make_request.return_value = {"success": True}
+
+    light.turn_on(color_id=25)  # DEEP BLUE
+
+    assert light._data.color == 25
+    _assert_command(
+        light._credentials.make_request, _on_payload(color_id=25)
+    )
+
+
+def test_turn_on_with_pattern(light):
+    light._credentials.make_request.return_value = {"success": True}
+
+    light.turn_on(color_id=80, pattern_speed=10)  # Sparkle pattern
+
+    _assert_command(
+        light._credentials.make_request,
+        _on_payload(color_id=80, pattern_speed=10),
+    )
+
+
+def test_set_color(light):
+    light._credentials.make_request.return_value = {"success": True}
+
+    light.set_color(2)  # 3000K white
+
+    assert light._data.color == 2
+    _assert_command(
+        light._credentials.make_request,
+        _on_payload(lighting_status_id=63, color_id=2),
+    )
+
+
+def test_set_color_rejects_unknown_id(light):
+    with pytest.raises(ValueError):
+        light.set_color(999)
+
+
+def test_set_pattern_speed(light):
+    light._credentials.make_request.return_value = {"success": True}
+
+    light.set_pattern_speed(16)
+
+    assert light._data.pattern_speed == 16
+    _assert_command(
+        light._credentials.make_request,
+        _on_payload(lighting_status_id=63, pattern_speed=16),
+    )
+
+
+def test_set_pattern_speed_rejects_out_of_range(light):
+    with pytest.raises(ValueError):
+        light.set_pattern_speed(0)
+
+
+def test_rename(light):
+    light._credentials.make_request.return_value = {}
+
+    light.rename("New Name")
+
+    assert light.name == "New Name"
+    light._credentials.make_request.assert_called_once_with(
+        "PUT",
+        "/Light/UpdateName",
+        json={"lightId": 456, "name": "New Name", "pinName": None},
     )

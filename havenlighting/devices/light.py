@@ -48,18 +48,31 @@ class Light:
         """Brightness on Haven's 0-10 scale."""
         return self._data.brightness
 
-    def turn_on(self, brightness: int | None = None) -> None:
-        """Turn the light on, optionally setting brightness (0-10 scale).
+    def turn_on(
+        self,
+        brightness: int | None = None,
+        color_id: int | None = None,
+        pattern_speed: int | None = None,
+    ) -> None:
+        """Turn the light on, optionally setting brightness/color/speed.
 
         The v2/Light/CommandV1 endpoint carries the requested state in the
-        payload itself: lightingStatusId 2 = on, lightBrightnessId 1-10 = the
-        new level, 63 = keep the current one.
+        payload itself: lightingStatusId 2 = on, lightBrightnessId 1-10 =
+        the new level, lightColorId selects a color or pattern (the
+        app's color catalog rides this field, see havenlighting.colors),
+        patternSpeedId adjusts pattern speed, and 63 = keep the current
+        value for any of them.
         """
         logger.debug("Turning on light: %s (ID: %d)", self.name, self.id)
-        self._send_command(LIGHT_STATE["ON"], brightness)
+        self._send_command(
+            LIGHT_STATE["ON"], brightness=brightness, color_id=color_id,
+            pattern_speed=pattern_speed,
+        )
         self._data.status = LIGHT_STATE["ON"]
         if brightness is not None:
             self._data.brightness = brightness
+        if color_id is not None:
+            self._data.color = color_id
         logger.info("Light turned on successfully: %s", self.name)
 
     def turn_off(self) -> None:
@@ -74,11 +87,51 @@ class Light:
         if not 0 <= brightness <= 10:
             raise ValueError(f"Brightness must be 0-10 on Haven's scale, got {brightness}")
         logger.debug("Setting brightness of light %s (ID: %d) to %d", self.name, self.id, brightness)
-        self._send_command(LIGHT_COMMAND["KEEP_SAME"], brightness)
+        self._send_command(LIGHT_COMMAND["KEEP_SAME"], brightness=brightness)
         self._data.brightness = brightness
         logger.info("Brightness of light %s set to %d", self.name, brightness)
 
-    def _send_command(self, lighting_status_id: int, brightness: int | None = None) -> None:
+    def set_color(self, color_id: int) -> None:
+        """Set a color or pattern (catalog id, see havenlighting.colors)."""
+        if not 0 <= color_id <= 88 and color_id != LIGHT_COMMAND["KEEP_SAME"]:
+            raise ValueError(f"Unknown color id {color_id}; see havenlighting.colors")
+        logger.debug("Setting color of light %s (ID: %d) to %d", self.name, self.id, color_id)
+        self._send_command(LIGHT_COMMAND["KEEP_SAME"], color_id=color_id)
+        self._data.color = color_id
+        logger.info("Color of light %s set to %d", self.name, color_id)
+
+    def set_pattern_speed(self, speed: int) -> None:
+        """Set pattern speed (1-63 on Haven's scale)."""
+        if not 1 <= speed <= 63:
+            raise ValueError(f"Pattern speed must be 1-63, got {speed}")
+        logger.debug("Setting pattern speed of light %s (ID: %d) to %d", self.name, self.id, speed)
+        self._send_command(LIGHT_COMMAND["KEEP_SAME"], pattern_speed=speed)
+        self._data.pattern_speed = speed
+        logger.info("Pattern speed of light %s set to %d", self.name, speed)
+
+    def rename(self, name: str) -> None:
+        """Rename this light.
+
+        PUT /Light/UpdateName with {lightId, name, pinName} on the
+        residential API (app v2.5.67 LightsService.updateLight, DEALERS_URL
+        base). Zone entries are managed through a different endpoint in
+        the app; this only applies to individual lights.
+        """
+        self._credentials.make_request(
+            "PUT",
+            "/Light/UpdateName",
+            json={"lightId": self.id, "name": name, "pinName": None},
+        )
+        self._data.name = name
+        logger.info("Renamed light %d to %s", self.id, name)
+
+    def _send_command(
+        self,
+        lighting_status_id: int,
+        brightness: int | None = None,
+        color_id: int | None = None,
+        pattern_speed: int | None = None,
+    ) -> None:
         """Send a state command via the v2/Light/CommandV1 endpoint.
 
         Endpoint and payload shape reverse-engineered from the Haven
@@ -97,8 +150,12 @@ class Light:
             "lightBrightnessId": (
                 LIGHT_COMMAND["KEEP_SAME"] if brightness is None else brightness
             ),
-            "lightColorId": LIGHT_COMMAND["KEEP_SAME"],
-            "patternSpeedId": LIGHT_COMMAND["KEEP_SAME"],
+            "lightColorId": (
+                LIGHT_COMMAND["KEEP_SAME"] if color_id is None else color_id
+            ),
+            "patternSpeedId": (
+                LIGHT_COMMAND["KEEP_SAME"] if pattern_speed is None else pattern_speed
+            ),
         }
         response = self._credentials.make_request(
             "POST",

@@ -7,6 +7,23 @@ from .config import API_BASE, API_TIMEOUT, APP_SOURCE, APP_VERSION
 
 logger = logging.getLogger(__name__)
 
+# 4xx statuses that mean "Haven could not process this request right now"
+# rather than "these credentials are wrong": 403 is Azure Front Door's WAF
+# block (see CLAUDE.md), 408 a timeout, 429 rate limiting.
+_TRANSIENT_CLIENT_ERRORS = frozenset({403, 408, 429})
+
+
+def is_credential_rejection(error: ApiError) -> bool:
+    """Whether an auth-endpoint ApiError means Haven rejected the credentials.
+
+    A 4xx answer (other than the transient ones above) is Haven saying the
+    request itself is wrong, which for login/refresh means the credentials.
+    Transport errors (no status) and 5xx mean they were never checked.
+    """
+    code = error.code
+    return code is not None and 400 <= code < 500 and code not in _TRANSIENT_CLIENT_ERRORS
+
+
 class Credentials:
     """Handles authentication and request credentials."""
 
@@ -27,8 +44,14 @@ class Credentials:
         return bool(self._token and self._user_id)
 
     def authenticate(self, email: str, password: str) -> bool:
-        """Authenticate with the Haven Lighting service."""
-        logger.debug("Attempting authentication for user: %s", email)
+        """Authenticate with the Haven Lighting service.
+
+        Returns False when Haven rejects the credentials. Raises ApiError
+        when the credentials could not be checked at all (network error,
+        timeout, 5xx, WAF block), so callers can retry instead of
+        treating an outage as a wrong password.
+        """
+        logger.debug("Attempting authentication")
         payload = {
             "username": email,
             "password": password,
@@ -41,19 +64,30 @@ class Credentials:
                 json=payload,
                 auth_required=False
             )
-            if not response.get("token"):
-                logger.error("Authentication failed for user %s: no token in response", email)
-                return False
-            self._update_credentials(response)
-            logger.info("Successfully authenticated user: %s", email)
-            return True
-
-        except ApiError as e:
-            logger.error("Authentication failed for user %s: %s", email, str(e))
+        except AuthenticationError as e:
+            logger.warning("Authentication rejected: %s", e)
             return False
+        except ApiError as e:
+            if is_credential_rejection(e):
+                logger.warning("Authentication rejected: %s", e)
+                return False
+            logger.warning("Authentication request failed: %s", e)
+            raise
+
+        if not isinstance(response, dict) or not response.get("token"):
+            logger.warning("Authentication failed: no token in response")
+            return False
+        self._update_credentials(response)
+        logger.debug("Authentication successful")
+        return True
 
     def refresh_token(self) -> bool:
-        """Refresh the authentication token."""
+        """Refresh the authentication token.
+
+        Returns False when Haven rejects the refresh token (the session is
+        over and a fresh login is needed). Raises ApiError when the refresh
+        could not be attempted (network error, timeout, 5xx).
+        """
         if not self._refresh_token or not self._user_id:
             logger.debug("Cannot refresh token - missing refresh token or user ID")
             return False
@@ -69,16 +103,28 @@ class Credentials:
                 },
                 auth_required=False
             )
-            self._update_credentials(response)
-            logger.info("Token refresh successful")
-            return True
-
-        except ApiError as e:
-            logger.error("Token refresh failed: %s", str(e))
+        except AuthenticationError as e:
+            logger.info("Token refresh rejected: %s", e)
             return False
+        except ApiError as e:
+            if is_credential_rejection(e):
+                logger.info("Token refresh rejected: %s", e)
+                return False
+            logger.warning("Token refresh request failed: %s", e)
+            raise
+
+        try:
+            self._update_credentials(response)
+        except ApiError as e:
+            logger.warning("Token refresh failed: %s", e)
+            return False
+        logger.debug("Token refresh successful")
+        return True
 
     def _update_credentials(self, data: Dict[str, Any]) -> None:
         """Update stored credentials from API response."""
+        if not isinstance(data, dict):
+            raise ApiError(f"Auth response is not an object: {type(data).__name__}")
         try:
             self._token = data["token"]
             self._refresh_token = data["refreshToken"]
@@ -110,9 +156,9 @@ class Credentials:
                 **kwargs
             )
         except AuthenticationError:
-            logger.info("Authentication error, attempting token refresh")
+            logger.debug("Authentication error, attempting token refresh")
             if self.refresh_token():
-                logger.info("Token refresh successful, retrying request")
+                logger.debug("Token refresh successful, retrying request")
                 return self._make_request_internal(
                     method=method,
                     path=path,
@@ -121,7 +167,7 @@ class Credentials:
                     base_url=base_url,
                     **kwargs
                 )
-            logger.error("Token refresh failed, unable to retry request")
+            logger.info("Token refresh rejected, unable to retry request")
             raise AuthenticationError("Token refresh failed")
 
     def _make_request_internal(
@@ -150,8 +196,8 @@ class Credentials:
         try:
             response = self._session.request(method, url, timeout=timeout, **kwargs)
         except RequestException as e:
-            logger.error("Request failed: %s", str(e))
-            raise ApiError(f"Request failed: {str(e)}")
+            logger.debug("Request failed: %s", e)
+            raise ApiError(f"Request failed: {e}") from e
 
         if response.status_code == 401:
             raise AuthenticationError("Received 401 Unauthorized response")

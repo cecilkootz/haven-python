@@ -110,9 +110,9 @@ class Location:
                     light_id,
                     light_data
                 )
-            logger.info("Found %d lights for location: %s", len(self._lights), self.name)
+            logger.debug("Found %d lights for location: %s", len(self._lights), self.name)
         except Exception as e:
-            logger.error("Failed to fetch lights for location %d: %s", self._location_id, str(e))
+            logger.debug("Failed to fetch lights for location %d: %s", self._location_id, e)
             raise
 
         return self._lights
@@ -186,5 +186,5 @@ class Location:
         for item in items:
             scene = Scene(self._credentials, self._location_id, item)
             scenes[scene.id] = scene
-        logger.info("Found %d scenes for location: %s", len(scenes), self.name)
+        logger.debug("Found %d scenes for location: %s", len(scenes), self.name)
         return scenes

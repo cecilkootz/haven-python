@@ -45,7 +45,7 @@ def test_authentication_failure(client, mocker):
 
     # Mock failed authentication (e.g. wrong password -> validation error)
     mock_request = mocker.patch.object(credentials, '_make_request_internal')
-    mock_request.side_effect = ApiError("Invalid username or password")
+    mock_request.side_effect = ApiError("Invalid username or password", code=400)
 
     client._credentials = credentials
 

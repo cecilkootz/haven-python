@@ -45,4 +45,4 @@ class Scene:
         )
         if not (isinstance(response, dict) and response.get("success")):
             raise ApiError(f"Executing scene {self.id} ({self.name}) failed: {response!r}")
-        logger.info("Scene activated: %s (ID: %d)", self.name, self.id)
+        logger.debug("Scene activated: %s (ID: %d)", self.name, self.id)

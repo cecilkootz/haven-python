@@ -11,15 +11,21 @@ logger = logging.getLogger(__name__)
 class HavenClient:
     """Main client for interacting with Haven Lighting devices."""
     
-    def __init__(self, log_level: int = logging.INFO, log_file: Optional[str] = None) -> None:
+    def __init__(self, log_level: Optional[int] = None, log_file: Optional[str] = None) -> None:
         """
         Initialize the Haven Lighting client.
-        
+
+        Logging is left to the application unless asked for: pass
+        ``log_level`` (and optionally ``log_file``) to have the client
+        install its own console/file handlers, as a standalone script would.
+
         Args:
-            log_level: Logging level (default: INFO)
+            log_level: Logging level to configure, or None (the default) to
+                leave logging configuration to the application
             log_file: Optional file path for logging output
         """
-        setup_logging(log_level, log_file)
+        if log_level is not None or log_file is not None:
+            setup_logging(logging.INFO if log_level is None else log_level, log_file)
         self._credentials = Credentials()
         self._locations: Dict[int, Location] = {}
         self._lights: Dict[int, Light] = {}
@@ -34,21 +40,22 @@ class HavenClient:
             password: User's password
             
         Returns:
-            bool: True if authentication successful, False otherwise
-            
+            bool: True if authentication successful, False if Haven rejected
+                the credentials
+
         Raises:
-            ApiError: If API request fails
+            ApiError: If Haven could not be reached or failed (network
+                error, timeout, 5xx, WAF block) — the credentials were not
+                checked, so the caller should retry rather than re-prompt
         """
         try:
             authenticated = self._credentials.authenticate(email, password)
-            if authenticated:
-                logger.info("Successfully authenticated user: %s", email)
-            else:
-                logger.warning("Authentication failed for user: %s", email)
-            return authenticated
         except ApiError as e:
-            logger.error("API error during authentication: %s", str(e))
+            logger.warning("Could not reach Haven to authenticate: %s", e)
             raise
+        if not authenticated:
+            logger.warning("Haven rejected the account credentials")
+        return authenticated
 
     def discover_locations(self) -> Dict[int, Location]:
         """Discover all available locations."""

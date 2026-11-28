@@ -25,7 +25,7 @@ class Location:
             location_id=location_id,
             name=data.get("name", "")
         ) if data else None
-        self._lights: Dict[int, Light] = {}
+        self._lights: Dict[str, Light] = {}
         logger.debug("Initialized Location: %s (ID: %d)", self.name, location_id)
 
     @property
@@ -70,8 +70,13 @@ class Location:
             location_id: cls(credentials, location_id, {"name": owner_name})
         }
 
-    def get_lights(self) -> Dict[int, Light]:
-        """Get all lights for this location.
+    def get_lights(self) -> Dict[str, Light]:
+        """Get all lights and zones for this location, keyed by ``Light.key``.
+
+        Lights and zones have separate id spaces (``lightId`` vs a zone's
+        ``id``), so a zone and a light can share a number; keying by the
+        raw id let one silently overwrite the other. Keys are
+        ``"light_<id>"`` / ``"zone_<id>"`` (see ``Light.key``).
 
         Uses the same endpoint as the Haven Lighting Android app
         (v2.5.67 LocationsService.getLocationLightZones):
@@ -104,12 +109,13 @@ class Location:
                 light_id = int(
                     light_data["lightId"] if "lightId" in light_data else light_data["id"]
                 )
-                self._lights[light_id] = Light(
+                light = Light(
                     self._credentials,
                     self._location_id,
                     light_id,
                     light_data
                 )
+                self._lights[light.key] = light
             logger.debug("Found %d lights for location: %s", len(self._lights), self.name)
         except Exception as e:
             logger.debug("Failed to fetch lights for location %d: %s", self._location_id, e)

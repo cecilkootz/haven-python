@@ -8,7 +8,7 @@ from .exceptions import ApiError, AuthenticationError, DeviceError, HavenExcepti
 # Libraries leave logging configuration to the application.
 _logging.getLogger(__name__).addHandler(_logging.NullHandler())
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 __all__ = [
     "HavenClient",
     "Light",

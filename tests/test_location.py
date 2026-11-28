@@ -46,8 +46,8 @@ def test_get_lights_uses_ordered_list_endpoint(location):
     location._credentials.make_request.assert_called_once_with(
         "GET", "/LightAndZones/OrderedList/123"
     )
-    assert list(lights.keys()) == [456]
-    assert lights[456].name == "Light 456"
+    assert list(lights.keys()) == ["light_456"]
+    assert lights["light_456"].name == "Light 456"
 
 
 def test_get_lights_skips_hidden_lights(location):
@@ -57,7 +57,7 @@ def test_get_lights_skips_hidden_lights(location):
 
     lights = location.get_lights()
 
-    assert list(lights.keys()) == [456]
+    assert list(lights.keys()) == ["light_456"]
 
 
 def test_get_lights_missing_lights_array_raises(location):
@@ -84,8 +84,8 @@ def test_get_lights_parses_brightness_and_pattern_speed(location):
 
     lights = location.get_lights()
 
-    assert lights[456].brightness == 5
-    assert not lights[456].is_on
+    assert lights["light_456"].brightness == 5
+    assert not lights["light_456"].is_on
 
 
 def test_get_lights_accepts_wrapped_envelope(location):
@@ -98,7 +98,7 @@ def test_get_lights_accepts_wrapped_envelope(location):
 
     lights = location.get_lights()
 
-    assert list(lights.keys()) == [456]
+    assert list(lights.keys()) == ["light_456"]
 
 
 def test_get_lights_accepts_flat_list(location):
@@ -110,7 +110,7 @@ def test_get_lights_accepts_flat_list(location):
     lights = location.get_lights()
 
     # zone entries (zoneId, no lightId) are skipped
-    assert list(lights.keys()) == [456]
+    assert list(lights.keys()) == ["light_456"]
 
 
 def test_get_lights_unexpected_shape_names_the_keys(location):
@@ -142,8 +142,20 @@ def test_get_lights_flat_list_with_zone_entries(location):
 
     lights = location.get_lights()
 
-    assert sorted(lights.keys()) == [39288, 49148]
-    drive_way = lights[49148]
+    assert sorted(lights.keys()) == ["zone_39288", "zone_49148"]
+    drive_way = lights["zone_49148"]
     assert drive_way.name == "Drive Way"
     assert drive_way.is_on
     assert drive_way.brightness == 10
+
+
+def test_get_lights_keeps_zone_and_light_with_the_same_id(location):
+    """Lights and zones are numbered independently; neither may be dropped."""
+    location._credentials.make_request.return_value = [
+        {"lightId": 7, "name": "Palm", "lightingStatusId": 2},
+        {"id": 7, "name": "Pool Zone", "isZone": True, "lightingStatusId": 1},
+    ]
+    lights = location.get_lights()
+    assert set(lights) == {"light_7", "zone_7"}
+    assert lights["light_7"].name == "Palm" and not lights["light_7"].is_zone
+    assert lights["zone_7"].name == "Pool Zone" and lights["zone_7"].is_zone

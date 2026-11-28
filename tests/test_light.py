@@ -42,7 +42,7 @@ def test_turn_on_success(light):
 
     assert light.is_on
     light._credentials.make_request.assert_called_once_with(
-        "POST", "v2/Light/CommandV1?locationId=123", json=_on_payload()
+        "POST", "/v2/Light/CommandV1?locationId=123", json=_on_payload()
     )
 
 
@@ -55,7 +55,7 @@ def test_turn_on_with_brightness(light):
     assert light.brightness == 5
     light._credentials.make_request.assert_called_once_with(
         "POST",
-        "v2/Light/CommandV1?locationId=123",
+        "/v2/Light/CommandV1?locationId=123",
         json=_on_payload(brightness=5),
     )
 
@@ -69,7 +69,7 @@ def test_turn_off_success(light):
     assert not light.is_on
     light._credentials.make_request.assert_called_once_with(
         "POST",
-        "v2/Light/CommandV1?locationId=123",
+        "/v2/Light/CommandV1?locationId=123",
         json=_on_payload(lighting_status_id=1),
     )
 
@@ -82,7 +82,7 @@ def test_set_brightness(light):
     assert light.brightness == 7
     light._credentials.make_request.assert_called_once_with(
         "POST",
-        "v2/Light/CommandV1?locationId=123",
+        "/v2/Light/CommandV1?locationId=123",
         json=_on_payload(lighting_status_id=63, brightness=7),
     )
 

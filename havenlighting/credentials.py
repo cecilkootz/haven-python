@@ -149,7 +149,13 @@ class Credentials:
             raise AuthenticationError("Received 401 Unauthorized response")
 
         if not response.ok:
-            raise ApiError(self._extract_error_message(response), code=response.status_code)
+            # _extract_error_message can legitimately return "" (e.g. a 404
+            # with an empty body); fall back to the status code so callers
+            # and logs never see an empty error string.
+            raise ApiError(
+                self._extract_error_message(response) or f"HTTP {response.status_code}",
+                code=response.status_code,
+            )
 
         if not response.content:
             return {}

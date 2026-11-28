@@ -86,7 +86,7 @@ class Location:
         try:
             response = self._credentials.make_request(
                 "GET",
-                f"LightAndZones/OrderedList/{self._location_id}"
+                f"/LightAndZones/OrderedList/{self._location_id}"
             )
 
             if "lights" not in response:

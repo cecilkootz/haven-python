@@ -99,7 +99,7 @@ class Light:
         }
         response = self._credentials.make_request(
             "POST",
-            f"v2/Light/CommandV1?locationId={self.location_id}",
+            f"/v2/Light/CommandV1?locationId={self.location_id}",
             json=payload,
         )
         if not (isinstance(response, dict) and response.get("success")):
